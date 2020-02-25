@@ -2,71 +2,71 @@ OpenStack
     含义:OpenStack是开源云操作系统，可控制整个数据中心的大型计算，
     存储和网络资源池;用户能够通过Web界面命令行或API接口配置资源;
 
-    OpenStack不是虚拟化
-    OpenStack的架构定位与技术范畴:
-    OpenStack只是系统的控制面;
-    OpenStack不包括系统的数据面组件,如:Hypervisor存储和网络设备等;
+    OpenStack不是虚拟化:
+        OpenStack的架构定位与技术范畴:
+        OpenStack只是系统的控制面;
+        OpenStack不包括系统的数据面组件,如:Hypervisor存储和网络设备等;
 
-    OpenStack和虚拟化有着关键的区别:
+    OpenStack和虚拟化的区别:
         OpenStack:
-        自身不提供虚拟化技术;
-        调用多种技术实现多资源池管理;
-        对外提供统一管理接口;
+            自身不提供虚拟化技术；
+            调用多种技术实现多资源池管理；
+            对外提供统一管理接口；
 
         虚拟化:
-        环境隔离,资源复用;
-        降低隔离损耗,提升运行效率;
-        提供高级虚拟化特性;
+            环境隔离,资源复用；
+            降低隔离损耗,提升运行效率；
+            提供高级虚拟化特性；
 
 
 
-    认证服务KeyStone
-        KeyStone:认证服务,首次出现在OpenStack的	Essex版本里;
-        简介:KeyStone提供身份验证，服务发现和分布式多租户授权,KeyStone支持LDAP、OAuth、OpenID Connect、SAML和SQL;
-        依赖的OenStack服务:不依赖其他OpenStack服务,为其他OpenStack服务提供认证支持;
+    认证服务(KeyStone)：
+        KeyStone:认证服务,首次出现在OpenStack的	Essex版本里；
+        简介:KeyStone提供身份验证，服务发现和分布式多租户授权,KeyStone支持LDAP、OAuth、OpenID Connect、SAML和SQL；
+        依赖的OenStack服务:不依赖其他OpenStack服务,为其他OpenStack服务提供认证支持；
 
 
     
-    操作界面Horizon
-        Horizon:操作界面,首次出现在OpenStack的Essex版本里;
-        简介:Horizon提供基于Web的控制界面，使云管理员和用户能够管理各种OpenStack资源和服务;
-        依赖的OpenStack服务: KeyStone;
+    操作界面(Horizon)：
+        Horizon:操作界面,首次出现在OpenStack的Essex版本里；
+        简介:Horizon提供基于Web的控制界面，使云管理员和用户能够管理各种OpenStack资源和服务；
+        依赖的OpenStack服务: KeyStone；
 
 
-    镜像服务Glance
-        Glance:镜像服务,首次出现在OpenStack的Bexar版本中;
+    镜像服务(Glance)：
+        Glance:镜像服务,首次出现在OpenStack的Bexar版本中；
         简介:
-            Glance提供发现、注册和检索虚拟机镜像功能;
-            Glance提供的虚拟机实例镜像可以存放在不同地方，例如本地文件系统、对象存储、块存储等;
+            Glance提供发现、注册和检索虚拟机镜像功能；
+            Glance提供的虚拟机实例镜像可以存放在不同地方，例如本地文件系统、对象存储、块存储等；
         依赖的OpenStack服务: KeyStone
 
 
 
-    计算服务Nova
-        Nova:计算服务，首次出现在OpenStack的Austin版本中;
+    计算服务(Nova)：
+        Nova:计算服务，首次出现在OpenStack的Austin版本中；
         简介:
-            Nova提供大规模、可扩展、按需自助服务的计算资源;
-            Nova支持管理裸机,虚拟机和容器;
-        依赖的OpenStack服务:KeyStone、Neutron、Glance;
+            Nova提供大规模、可扩展、按需自助服务的计算资源；
+            Nova支持管理裸机,虚拟机和容器；
+        依赖的OpenStack服务:KeyStone、Neutron、Glance；
 
 
-    块存储服务Cinder
-        Cinder:块存储服务，首次出现在OpenStack的Folsom版本中;
+    块存储服务(Cinder)：
+        Cinder:块存储服务，首次出现在OpenStack的Folsom版本中；
         简介:
-            Cinder提供块存储服务，为虚拟机实例提供持久化存储;
-            Cinder调用不同存储接口驱动，将存储设备转化成块存储池;
-        依赖的OpenStack服务: KeyStone;
+            Cinder提供块存储服务，为虚拟机实例提供持久化存储；
+            Cinder调用不同存储接口驱动，将存储设备转化成块存储池；
+        依赖的OpenStack服务: KeyStone；
 
     
-    网络服务Neutron
-        Neutron:网络服务,首次出现在OpenStack的Folsom版本中;
-        简介:Neutron负责管理虚拟网络组件,专注于为OpenStack提供网络即服务;
-        依赖的OpenStack服务: KeyStone;
+    网络服务(Neutron)：
+        Neutron:网络服务,首次出现在OpenStack的Folsom版本中；
+        简介:Neutron负责管理虚拟网络组件,专注于为OpenStack提供网络即服务；
+        依赖的OpenStack服务: KeyStone；
 
     
-    编排服务Heat:
-        Heat:编排服务,首次出现在OpenStack的Havana版本中;
+    编排服务(Heat)：
+        Heat:编排服务,首次出现在OpenStack的Havana版本中；
         简介:
-            Heat为云应用程序编排openStack基础架构资源;
-            Heat提供OpenStack原生Rest API和CloudFormation兼容的查询API;
-        依赖的OpenStack服务: KeyStone;
+            Heat为云应用程序编排openStack基础架构资源；
+            Heat提供OpenStack原生Rest API和CloudFormation兼容的查询API；
+        依赖的OpenStack服务: KeyStone；
