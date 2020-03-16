@@ -1,4 +1,4 @@
-OpenStack
+OpenStack：
     含义:OpenStack是开源云操作系统，可控制整个数据中心的大型计算，
     存储和网络资源池;用户能够通过Web界面命令行或API接口配置资源;
 
@@ -70,3 +70,16 @@ OpenStack
             Heat为云应用程序编排openStack基础架构资源；
             Heat提供OpenStack原生Rest API和CloudFormation兼容的查询API；
         依赖的OpenStack服务: KeyStone；
+
+
+    Openstack的基础架构：由Keystone，Nova，Neutron，Glance，Cinder/Swift组成核心的架构；
+
+    Openstack核心组件的功能：
+        Keystone：认证与鉴权；
+        Nova：计算服务管理（虚拟机生命周期管理）；
+        Neutron：虚拟网络管理；
+        Glance：虚拟机镜像管理；
+        Cinder/Swift：存储管理；
+
+    Openstack各组件间的关系：
+        各组件间通信的联系，都是通过rabbitmq消息队列中间件实现，所有组件都必须与Keystone组件交互认证与鉴权；
