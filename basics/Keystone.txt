@@ -1,0 +1,119 @@
+Keystone
+    基本概念：
+        user：即用户，指的是使用Openstack service的用户，可以是人、服务、系统；
+            （也就是说，只要是访问Openstack service的对象，都可以称为user）
+
+        Credentials：用于确认user身份的凭证；
+            可以是：
+                用户名和密码；
+                用户名和API Key（密钥）；
+                Keystone颁发的token令牌；
+        
+        oken：是一串数字字符串；
+            当user访问资源时需要使用的凭证，在Keystone中引入的令牌机制，保护user对资源的访问，
+            同时引入PKI、PKIZ、fernet、UUID等加密方式产生一串随机字符，对令牌加以保护；
+            
+            Token是有时效性的，在有效的时间内才可以访问资源；
+
+        
+        Endpoint：用来通过访问和定位某个Openstack service的地址，通常为一个URL；
+            分为三类：
+                admin url：管理员专用，默认port：35357；
+                internal url：Openstack内部组件间互相通信专用，默认端口：5000；
+                public url：（Openstack外界）其他用户访问专用，默认端口：5000；
+
+
+    主要功能：OpenStack认证服务提供单一的集成点，用于管理身份验证、授权和服务目录；
+
+    
+    工作流程：（keystone与user认证的整个工作流程）
+        1.user想创建一个实例，首先将自己的Credentials发给Keystone。认证成功后，Keystone会颁给
+        user一个Token和一个访问服务的Endpoint
+        
+        2.user把token提交给Keystone，Keystone并返回一个Project
+        
+        3.user向Keystone发送带有特定Project的凭证，告诉Keystone，该user在哪个Project中，Keystone收请求后，
+        会发送一个Project的Token到user。user带着这个Token和Endpoint找到相应的可访问服务；
+        （注：第一个Token是用来验证user是否有权限与Keystone通信，第二个Token是用来验证user是否有权限访问Keystone的其它服务）
+        
+        4.服务向Keystone进行认证，user持有的该Token是否合法，是否允许访问该服务；
+        
+        5.在服务通过与Keystone认证该user的Token之后，服务执行user的请求，创建实例服务同时会将状态报告给user，报告用户实例创建成功；
+
+
+    组件安装：
+        创建Keystone数据库：
+            在控制节点（controller）的MariaDB上创建Keystone数据库：
+		        mysql -uroot -p123456	
+                # -u root指定登录mariaDB的用户为root；
+		        #-p123456 root用户登录maraiDB的密码为“123456”；
+            创建Keystone数据库：CREATE DATABASE keystone；
+            
+            创建keystone数据库用户keystone，并开放本地/远程登录，登录密码为"KEYSTONE_DBPASS"；
+                GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' \
+                IDENTIFIED BY '123456';
+                GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' \
+                IDENTIFIED BY '123456';
+
+        安装keystone组件：
+            在控制节点（controller）上安装keystone组件：yum install openstack-keystone httpd mod_wsgi -y
+	        
+            配置keystone配置文件：/etc/keystone/keystone.conf
+	        
+            备份原始配置文件：cp /etc/keystone/keystone.conf /etc/keystone/keystone.conf.bak
+            
+            将原始配置文件去掉带”#“号行：
+                cat /etc/keystone/keystone.conf.bak | grep -v ^# | uniq > /etc/keystone/keystone.conf
+            
+            编辑配置文件：vim /etc/keystone/keystone.conf 
+            
+            在 [database] 和[ token] 选项里分别添加以下参数：
+                [database]
+                connection=mysql+pymysql://keystone:123456@controller/keystone 
+                [token]
+                provider = fernet
+            
+            参数说明：
+                [database]：数据库选项设置；
+                “mysql+pymysql”：数据库连接方式；
+                “keystone:KEYSTONE_DBPASS”： 登录用户名：用户密码；
+                “@controller/keystone”：controller主机上的keystone数据库；
+                [token]：鉴权认证设置；
+                保存退出；
+
+            填充keystone数据库：su -s /bin/sh -c "keystone-manage db_sync " keystone
+                （无返回任何结果则表示填充正常）
+
+            
+            初始化Fernet key库：
+                keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+                keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
+
+            
+            引导身份认证服务，配置keystone的相关认证信息：（未来openstack登录界面的管理员密码，在此设置）
+                keystone-manage bootstrap --bootstrap-password 123456 \
+                    --bootstrap-admin-url http://controller:5000/v3/ \
+                    --bootstrap-internal-url http://controller:5000/v3/ \
+                    --bootstrap-public-url http://controller:5000/v3/ \
+                    --bootstrap-region-id RegionOne
+            
+            参数说明：
+                --bootstrap-password： keystone管理员密码；
+                --bootstrap-admin-url： 管理员认证URL；
+                --bootstrap-internal-url： 内部认证URL；
+                --bootstrap-public-url： 外部认证URL；
+                --bootstrap-region-id： 指定区域名；
+
+
+    配置Apache服务：
+        在Apache配置文件中设置ServerName为本机主机名，的第96行加入”ServerName ctrl“
+            vi /etc/httpd/conf/httpd.conf
+                95 #ServerName www.example.com:80
+                95 ServerName controller
+
+            为wsgi-keystone.conf创建链接到Apache服务目录：
+                ln -s /usr/share/keystone/wsgi-keystone.conf /etc/httpd/conf.d/
+
+        重启httpd服务，并加入开机自启：
+            systemctl enable httpd.service
+            systemctl start httpd.service
