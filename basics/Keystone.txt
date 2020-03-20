@@ -117,3 +117,78 @@ Keystone
         重启httpd服务，并加入开机自启：
             systemctl enable httpd.service
             systemctl start httpd.service
+
+
+    部署验证：
+        创建环境脚本：模拟一个帐号登录环境，如管理员登录，就需要创建一个环境脚本：
+	        vi /root/admin-openrc
+                export OS_USERNAME=admin
+                export OS_PASSWORD=123456
+                export OS_PROJECT_NAME=admin
+                export OS_USER_DOMAIN_NAME=Default
+                export OS_PROJECT_DOMAIN_NAME=Default
+                export OS_AUTH_URL=http://controller:5000/v3
+                export OS_IDENTITY_API_VERSION=3
+	
+            参数说明：
+                export OS_USERNAME=admin：登录keystone的admin（管理员）帐号
+                export OS_PASSWORD=ADMIN_PASS：keystone预设的密码
+                export OS_PROJECT_NAME=admin：指定Openstack的项目类型
+                export OS_USER_DOMAIN_NAME=Default：指定Openstack用户所属域
+                export OS_PROJECT_DOMAIN_NAME=Default：指定Openstack项目所属域
+                export OS_AUTH_URL=http://controller:35357/v3：指定认证链接
+                export OS_IDENTITY_API_VERSION=3：指定认证版本
+                
+            执行脚本：. /root/admin-openrc
+            查看当前环境：env | grep OS
+                HOSTNAME=controller
+                OS_USER_DOMAIN_NAME=Default
+                OS_PROJECT_NAME=admin
+                OS_IDENTITY_API_VERSION=3
+                OS_PASSWORD=ADMIN_PASS
+                OS_AUTH_URL=http://controller:5000/v3
+                OS_USERNAME=admin
+                OS_PROJECT_DOMAIN_NAME=Default
+
+        
+            验证：openstack token issue
+                鉴权通过，创建一个domain（域），名为“example”，描述为“Test Example”：
+                    openstack domain create --description "Test Example" example
+            
+            查看当前环境下的所有项目（project）：openstack project list
+                一般情况下，除了管理员外，我们还需要一些非特权项目以及用户在默认域下（default domain）下，
+                创建一个project（项目），名为“demo”，描述为“Demo Project”：
+                    openstack project create --domain default --description "Demo Project" demo
+            
+            创建Openstack的“普通用户”角色，名为“user”：openstack role create user
+            
+            查看当前都有哪些角色：openstack role list
+                将用户“demo”在“demo”项目中的角色，规划为“普通用户”的角色（指令不会返回结果）；
+            
+            验证登录：unset OS_AUTH_URL OS_PASSWORD     #取消环境变量的密码
+
+            
+            用户admin登录：
+                openstack --os-auth-url http://controller:35357/v3 \
+                    --os-project-domain-name Default --os-user-domain-name Default \
+                    --os-project-name admin --os-username admin token issue
+                
+                password：ADMIN_PASS
+
+            
+            用户demo登录：
+                openstack --os-auth-url http://controller:5000/v3 \
+                    --os-project-domain-name Default --os-user-domain-name Default \
+                    --os-project-name demo --os-username demo token issue
+                
+                password：123456
+
+
+        练习：
+            在默认域下，创建一个用户，名为“aa“：
+                openstack user create --domain default --password-prompt aa
+
+            将用户“aa”在“demo”项目中的角色，规划为“普通用户”的角色：
+                openstack role add --project demo --user aa user
+                
+                查看结果：openstack role list --user aa --project demo
