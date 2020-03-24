@@ -178,3 +178,37 @@ Openstack 调用 keystone 接口获取 token ：
                 描述：端点的ID；
 
 
+    Postman：（Openstack 接口调用工具）
+        含义：Postman是一种网页调试与发送网页http请求的chrome插件，可以用来模拟get或者post或者其他方式的请求来调试；
+        功能：postman界面分为两部分：左边的sidebar 右边的request builder：快速创建几乎所有的请求；
+
+        HTTP请求的4部分:URL，请求的method，headers，body；
+
+        URL设置：
+
+        Method：Get 与 Post
+            Get：get是从服务器上获取数据，是把参数数据队列加到提交表单的ACTION属性所指的URL中，值和表单内各个字段一一对应，
+                在URL中可以看到Get的参数：Headers- Conten-Type；
+                
+                Http Header里的Content-Type一般有这三种：
+                    application/x-www-form-urlencoded：数据被编码为名称/值对。这是标准的编码格式；
+                    multipart/form-data： 数据被编码为一条消息，页上的每个控件对应消息中的一个部分；
+                    text/plain：数据以纯文本形式(text/json/xml/html)进行编码，其中不含任何控件或格式字符，postman软件里标的是RAW；
+
+
+            Post：
+                post是向服务器传送数据，是通过HTTP post机制，将表单内各个字段与其内容放置在HTML HEADER内一起传送到ACTION
+                属性所指的URL地址；（用户看不到这个过程）
+
+                form-data：是网页表单用来传输数据的默认格式。可以模拟填写表单，并且提交表单\；
+                
+                urlencoded：上传文件通过这个编码模式，该模式和表单模式会容易混淆，urlencoded中的key-value会写入URL，
+                form-data模式的key-value不明显写入URL，而是直接提交；
+                
+                raw：raw request可以包含任何东西。所有填写的text都会随着请求发送；
+                
+                binary：image, audio or video files.text files 。 也不能保存历史，每次选择文件，提交；
+
+            其他设置：
+                为了后续实验方便，关闭Postman的SSL认证：单击“File > Settings”，把“SSL certificate verification”设置为OFF状态；
+
