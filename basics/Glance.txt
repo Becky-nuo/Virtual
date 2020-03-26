@@ -31,7 +31,9 @@ Glance:
     版本:
         在Newton之前的版本中，glance支持两种REST API V1和V2，两者区别还是很明显的：
             V1只提供了基本的image和member操作功能：镜像创建、删除、下载、列表、详细信息查询、更新，以及镜像tenant成员的创建、删除和列表；
+            
             V2除了支持V1的所有功能外，主要是增加了如下功能：镜像 location 的添加、删除和修改等操作，以及metadata  namespace ，image tag 的操作；
+            
             V1 和V2对 image store 的支持是相同的：
                 V1版本的实现，具有glance-api和glance-registry两个WSGI服务，二者都提供REST API，但强调的一点是：glance-registry提供的REST 
                 API是给glance-api使用的；
