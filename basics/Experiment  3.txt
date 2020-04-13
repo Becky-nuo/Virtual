@@ -1,0 +1,209 @@
+FusionAccess 6.0 安装（给定 AD）：
+    创建 Linux 基础架构虚拟机
+        实验任务：
+            在 FusionCompute 中，创建 Linux 基础架构虚拟机。
+        
+        必备事项：
+            已登录 FusionCompute；
+            本地软件：FusionAccess_Linux_Installer_V100R006C00SPCxxx.iso；
+        
+        操作步骤：
+            安装 ITA/GaussDB/HDC/WI/License 组件合一部署虚拟机：
+                1、在 FusionCompute 中，选择“虚拟机和模板”；
+                2、在“虚拟机和模板”界面，单击“入门”，进入“站点——入门”界面；
+                3、在“站点——入门”界面，单击“创建虚拟机”；
+                4、进入“创建虚拟机——选择创建类型”界面，单击“下一步”；
+                    进入“选择名称和文件夹”界面； 
+                    名称：创建的新虚拟机的名称，用户自定义，例如“FA-ITA”；
+                5、单击“下一步”。进入“选择计算资源”界面；
+                    计算资源：表示需要虚拟机创建的位置，两台主备部署，各组件合一部署，
+                    两台虚拟机必须部署在管理集群“ManagementCluster”的不同 CNA 节点上；
+                
+                6、单击“下一步”，进入“选择数据存储”界面；
+                    建议选择使用方式为 “非虚拟化”的数据存储资源；
+                    建议使用高性能存储，不要使用 NL-SAS 或 SATA 等低性能存储；
+                
+                7、单击“下一步”，进入“选择操作系统”界面；
+                    操作系统类型：Linux；
+                    操作系统版本号：Novell SUSE Linux Enterprise Server 11 SP3 64bit；
+                
+                8、单击“下一步”，进入“虚拟机配置”界面；
+                    虚拟机硬件规格为：
+                        CPU：4 个，单击 CPU 左侧的 进入 CPU QOS 设置：份额：选择“自定义”，设置成最高值“128000”；
+                        内存：12GB，单击内存左侧的 进入内存 QOS 设置：预留(MB)：设置为“最大值”；
+                        磁盘 1：40GB；
+                        网卡 1：业务平面网卡 ServicePortGroup；
+                        
+                        网卡 2：管理平面网卡 ManagePortGroup，单击下方的“新设备”处，选择“网卡”并单击“添 加”，即可添加第二块网卡，
+                        不同的网卡平面可在“网络池”中进行配置；
+                
+                9、单击“下一步”，进入“确认信息”界面；
+                10、单击“完成”，弹出对话框，在“系统管理——任务中心”可查看创建进度；
+        
+        安装 vAG/vLB 虚拟机：（可选）
+            1、在 FusionCompute 中，选择“虚拟机和模板”；
+            2、在“虚拟机和模板”界面，单击“入门”，进入“站点——入门”界面；
+            3、在“站点——入门”界面，单击“创建虚拟机”；
+            4、进入“创建虚拟机——选择创建类型”界面。单击“下一步”，进入“选择名称和文件夹”界面；
+                名称：创建的新虚拟机的名称，用户自定义，推荐为“FA-vAG/vLB”；
+            5、单击“下一步”，进入“选择计算资源”界面；
+                计算资源：表示需要虚拟机创建的位置。两台主备部署，各组件合一部署，两台虚拟机必
+                须部署在管理集群“ManagementCluster”的不同 CNA 节点上。
+            
+            6、单击“下一步”。进入“选择数据存储”界面；
+                建议选择使用方式为 “非虚拟化”的数据存储资源；
+                建议使用高性能存储，不要使用 NL-SAS 或 SATA 等低性能存储；
+            
+            7、单击“下一步”。进入“选择操作系统”界面；
+                操作系统类型：Linux
+                操作系统版本号：Novell SUSE Linux Enterprise Server 11 SP3 64bit
+            
+            8、单击“下一步”，进入“虚拟机配置”界面；
+                虚拟机硬件规格为：
+                    CPU：4 个，单击 CPU 左侧的 进入 CPU QOS 设置：份额：选择“自定义”，设置成最高值“128000”；
+                    内存：8GB，单击内存左侧的 进入内存 QOS 设置：预留(MB)：设置为“最大值”；
+                    磁盘 1：30GB；
+                    网卡 1：业务平面网卡 ServicePortGroup；
+                    网卡 2：管理平面网卡 ManagePortGroup，单击下方的“新设备”处，选择“网卡”并单击“添 加”，即可添加第二块网卡。
+                    不同的网卡平面可在“网络池”中进行配置；
+                    
+                    单击上方的“选项”栏，在最底处将“网卡类型”选为“HW_V_NET”；
+            9、单击“下一步”，进入“确认信息”界面；
+            10、单击“完成”，弹出对话框，在“系统管理——任务中心”可查看创建进度；
+
+    配置 Linux 基础架构虚拟机：
+        实验任务：
+            在 FusionCompute 中设置虚拟机属性和 VNC 登录后安装操作系统；
+        
+        必备事项：
+            已登录 FusionCompute
+            本地软件：FusionAccess_Linux_Installer_V100R006C00SPCxxx.iso
+        
+        操作步骤：
+            设置基础架构虚拟机自恢复属性：
+                1、使用“putty”工具，登录到 VRM 节点虚拟机。登录帐户为“gandalf”，默认密码为“Huawei@CLOUD8”；
+                2、根据以下命令切换到“root”用户，并按提示输入 root 帐户密码，密码默认为“Huawei@CLOUD8!”；
+                3、执行以下命令：TMOUT=0，防止“PuTTY”超时退出；
+                4、针对每台基础架构虚拟机虚拟机，执行以下命令：sh /opt/galax/vrm/tomcat/script/modifyRecover.sh vmid true；
+                5、vmid 为基础架构虚拟机 ID；
+                6、基础架构虚拟机 ID 可以在 FusionCompute 界面上查询。示例：
+                    其中第④即该虚拟机的虚拟机 ID，或者可以在“虚拟机和模板——虚拟机”列表中查看：
+                        如果“虚拟机和模板”列表中无“ID”列，可通过如下方法显示：
+                        单击“虚拟机和模板”列表右上角的 “列显示设置”，勾选“ID”，并单击“确定”；
+                7、重启 VRM 进程，执行此命令：service vrmd restart；
+                8、在 FusionCompute 中，选择“虚拟机和模板”，在“虚拟机”页签，在基础架构虚拟机所
+                    在行，选中“更多 > 强制关闭”，关闭虚拟机，待虚拟机“状态”变为“已停止”
+                    时，在该虚拟机所在行，单击“打开电源”，启动虚拟机；
+                
+                9、重复步骤 8，完成其他基础架构虚拟机的关闭和启动；
+        
+        挂载光驱并安装操作系统：
+            1、根据 FusionSphere 版本；
+            2、FusionSphere V100R005C10SPC700 及以前版本；
+            3、在刚创建的裸虚拟机所在行，单击“VNC 登录”；
+            4、在 VNC 登录窗口上方，单击 ，在弹出的菜单中单击“挂载光驱(本地)”；
+            5、选择“文件”，单击“浏览”，选择存放在本地的操作系统 ISO 文件；
+            6、勾选“立即重启虚拟机，安装操作系统”。
+            7、单击“确认”，弹出挂载光驱成功的提示框。
+            8、单击“确定”；
+            9、在 FusionCompute 界面最上方的菜单栏中，选择“首页”；
+            10、单击“虚拟机和模板”界面左侧导航树中的“虚拟机和模板”；
+            11、在“名称”列中，单击刚创建的裸虚拟机名称；
+            12、选择“硬件 > 光驱 > 挂载光驱（本地）”，单击“确定”；
+            13、将操作系统文件 FusionAccess_Linux_Installer_V100R006C00SPCxxx.iso 挂载至虚拟机，勾
+                选 “立即重启虚拟机，安装操作系统”后，单击“确定”；
+            
+            14、在“虚拟机和模板”列表中，找到刚创建的裸虚拟机所在的行，单击“VNC 登录”；
+            15、虚拟机重启成功后，当进入“Welcome to UVP！”界面时，在 30 秒内选择“Install”，按“Enter”； 
+            16、系统开始自动加载。加载大约耗时 3 分钟，加载成功后，进入“Main Installation Window”界面；
+                示例：
+                    按“Tab”或“↑”“↓”方向键移动光标；
+                    按“Enter”选择或执行光标所选项目；
+                    按空格键选中光标所选项目；
+                    输入数字时请使用主键盘区上方的数字键；
+            
+            17、按“↓”键将光标调到左侧导航中的“Network”，按“Enter”；
+            18、按“Enter”，在弹出的“IP Configuration for eth0”界面，选中“Manual address configuration”，
+                设置以下信息，并保存设置：
+                    “IP Address”：业务平面 IP 地址；
+                    “Netmask”：子网掩码；
+
+            19、在“Network Configuration”界面，配置业务平面所在网段对应的网关信息，
+                例如：
+                    192.168.213.254，并保存设置；
+            20、在左侧导航中，选中“Hostname”，按“Enter”，在“Hostname Configuration”界面，
+                设置实际规划的虚拟机主机名称，例如：FA-ITA，并保存设置；
+            
+            21、在左侧导航中，选中“Timezone”，按“Enter”。在“Time Zone Selection”界面，修改
+                时区和时间，并保存设置。
+            
+            22、在左侧导航中，选中“Password”，按“Enter”，在“Root Password Configuration”界
+                面，输入实际规划的 root，并保存设置。
+            
+            23、按“F12”键，弹出确认对话框，连续 2 次按“Enter”；
+            24、系统进入“Package Installation”界面，开始安装 Linux 操作系统；
+            25 安装成功后，虚拟机自动重启；
+                安装过程大约耗时 10 分钟；
+                操作系统安装完成后，在重启过程中，若屏幕显示有个别项目检查结果为“Failed”，请忽略并继续执行后续
+                操作，这些项目不影响虚拟机的正常使用；
+            
+            26、卸载光驱；
+            27、在“FusionCompute”中，在“虚拟机和模板”界面，选择待操作的虚拟机，右键单击选择
+                “挂载 tools”，弹出对话框，单击“确定”。示例：
+            
+            28、通过 VNC 方式，使用 root 帐号登录刚安装操作系统的虚拟机；
+            29 将光标调到左侧导航中的“PV Driver”，按“Enter”，根据界面提示完成“PV Driver”安装；
+                如果 root 帐号是首次登录虚拟机，系统会直接进入“FusionAccess”界面；
+                “↑”“↓”键，可纵向调节光标；
+            
+            30、当显示包含如下提示时，代表 PV Driver 安装成功，按“F8”重启虚拟机；
+                “PV Driver installed successfully.”
+            
+            31、重复执行步骤 1～步骤 31，完成其他 Linux 基础架构虚拟机的配置；
+
+        
+        安装 ITA/GaussDB/HDC/WI/License 服务器：
+            1、通过 VNC 方式，使用 root 帐号登录 ITA/GaussDB/HDC/WI/License 服务器；
+            2、输入命令“startTools”，弹出“FusionAccess”界面；
+            3、依次选择“Software > Install all（Microsoft AD）”，按“Enter”；
+            4、弹出“Install all”界面；
+            5、选择“Create a new node”，按“Enter”；
+            6、弹出“Install all（Create a new node）”界面；
+            7、根据实际情况选择安装模式，按“Enter”；
+                安装模式需要保持和 FusionCompute 的安装模式保持一致；
+                Common mode：表示普通模式；
+                Rights separation mode：三员分立模式；
+            
+            8、在弹出的对话框中，设置“Local Service IP”为本服务器的业务平面 IP 地址，需与安装操
+                作系统时所配置的业务平面 IP 地址相同；
+            
+            9、连续按两次“Enter”；
+            10、开始安装并配置组件，耗时约 3 分钟，出现“Install all components successfully.”提示时，说明安装成功；
+            11、按“Enter”；
+            12、完成服务器组件的安装与配置；
+        
+        
+        安装 vAG/vLB 组件：（可选）
+            1、vAG/vLB 服务器在完成上述 2.3.2.3.2 中的步骤 1～步骤 31 后，即成功安装 PV Driver 并重启后，再执行以下步骤；
+            2、通过 VNC 方式，使用 root 帐号登录 vAG/vLB 服务器；
+            3、输入命令“startTools”，弹出“FusionAccess”界面；
+            4、在左侧导航树中，进入“Software > Custom Install > vAG”；
+            5、在弹出的“Install or Uninstall vAG”界面中，选择“Install vAG”，按“Enter”；
+            6、弹出的确认提示框，按“Enter”；
+            7、当显示如下提示时，代表 vAG 安装成功；
+                “vAG installed successfully”
+            8、按“Enter”；
+            9、在左侧导航树中，进入“Software > Custom Install > vLB”，示例：
+            10、在弹出的“Install or Uninstall or Configure vLB”界面中，选择“Install vLB”，按“Enter”。
+            11、弹出的确认提示框，按“Enter”；
+            12、当显示如下提示时，代表 vLB 安装成功；
+                “vLB installed successfully”
+            13、按“Enter”；
+        
+        配置 WI/UNS 服务器的 IP：（可选）
+            1、在左侧导航树中，进入“vLB > Configure vLB > Configure WI/UNS”；
+            2、在弹出的界面中输入 WI/UNS 服务器的业务平面 IP 地址，如果实际规划只有一台 WI/UNS服务器，
+               只需输入此台 WI/UNS 服务器的业务平面 IP 地址即可；
+                用于企业内部用户接入时，填写企业内部用户访问的 WI/UNS 服务器的 IP 地址；
+                用户外网/公网用户接入时，填写外网/公网用户访问的 WI/UNS 服务器的 IP 地址；
+            3、按“Enter”，当显示“WI/UNS IP address configured Successfully”提示时，代表配置成功，按“Enter”；
