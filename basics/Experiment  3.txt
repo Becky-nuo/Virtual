@@ -207,3 +207,51 @@ FusionAccess 6.0 安装（给定 AD）：
                 用于企业内部用户接入时，填写企业内部用户访问的 WI/UNS 服务器的 IP 地址；
                 用户外网/公网用户接入时，填写外网/公网用户访问的 WI/UNS 服务器的 IP 地址；
             3、按“Enter”，当显示“WI/UNS IP address configured Successfully”提示时，代表配置成功，按“Enter”；
+
+    初次登录 FusionAccess：
+        实验任务：
+            初次登录 FusionAccess 修改密码与初始配置；
+        
+        实验步骤：
+            1、登录 FusionAccess。
+                访问地址： https://ITA 服务器的业务平面 IP 地址：8448；
+            
+            2、输入默认的用户名和密码，默认用户名为“admin”，默认密码为“Huawei123#”；
+            
+            3、单击“登录”，进入“修改密码”界面；
+            4、输入原密码“Huawei123#”，并输入新密码以及确认新密码；
+            5、单击“保存”，进入“FusionAccess 配置向导”；
+            6、在“FusionAccess 配置向导——配置虚拟化环境”界面；
+                执行以下操作：
+                    “虚拟化类型”选择为 FusionCompute；
+                    在“FusionCompute IP”栏填写 FusionCompute 浮动 IP；
+                    在“FusionCompute 端口号”栏填写“7070”；
+                    在“SSL 端口号”栏填写“7443”；
+                    在“用户名”栏填写“vdisysman”；
+                    在“密码”栏填写 “VdiEnginE@234”；
+                    “通讯协议类型”默认为“https”；
+            
+            7、单击“下一步”，进入“配置域和 DNS”界面；
+            8、在“配置域和 DNS 界面”中；
+                执行以下操作：
+                    填写域全称，如“vdesktop.huawei.com”；
+                    填写域账号，如“vdsadmin”；
+                    填写域账号对应的密码，如“Huawei@123”；
+                    填写主域控制器 IP，即 AD 服务器所在虚拟机的业务平面 IP；
+                    填写备域控制器 IP，即 AD 服务器所在虚拟机的业务平面 IP，如无则不需填写；
+                    填写主 DNS 控制器 IP，即 DNS 服务器所在虚拟机的业务平面 IP；
+                    填写备 DNS 控制器 IP，即 AD 服务器所在虚拟机的业务平面 IP，如无则不需填写；
+            
+            9、单击“下一步”，进入“配置 vAG/vLB”界面；
+            10、在“配置 vAG/vLB”界面，单击“新增”，弹出“vAG/vLB 配置”对话框；
+            11、在“vAG/vLB 配置”对话框中；
+                执行以下操作：
+                    填写服务器 IP，即 vAG/vLB 服务器所在虚拟机业务平面 IP 地址；
+                    部署类型选择为“vAG+vLB”；
+                    SSH 账户填写为“gandalf”；
+                    密码填写为“Huawei@123”；
+            
+            12、单击“确认”。界面新增了 vAG/vLB 服务器信息；
+            13、单击“下一步”，进入“确认信息”界面；
+            14、在“确认信息”界面，确认填写信息是否无误；
+            15、单击“提交”，进入“配置完成”界面，等待配置完成； 
