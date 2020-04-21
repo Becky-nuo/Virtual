@@ -1,0 +1,206 @@
+Cinder 组件安装与验证：
+        Cinder组件部署规划：
+	        Cinder各组件分布：
+                controller：
+                    192.168.80.150/24
+                    192.168.88.150/24
+                    
+                    openstack-cinder
+
+                cinder：
+                    192.168.80.152/24
+
+                    lvm2
+                    device-mapper-persistent-tata
+                    openstack-cinder 
+                    python-keystone 
+
+        安装存储节点（cinder）的相关组件 （在cinder节点操作）：
+            安装LVM组件：
+                yum install lvm2 device-mapper-persistent-data 
+                
+                启动服务并加入开机自启：
+                    systemctl enable lvm2-lvmetad.service
+                    systemctl start lvm2-lvmetad.service
+            
+            配置LVM卷：
+                查看当前系统的硬盘情况：lsblk 
+
+                创建LVM物理逻辑卷/dev/vdb：pvcreate /dev/vdb
+
+                创建cinder-volumes逻辑卷组：vgcreate cinder-volumes /dev/vdb
+                    只有实例才能访问块存储卷，底层操作系统管理与卷关联的设备，
+                    默认情况下，LVM卷扫描工具会扫描包含卷的块存储设备的/ dev目录， 
+                    如果项目在其卷上使用LVM，则扫描工具将检测这些卷并尝试缓存它们，
+                    这可能会导致底层操作系统和项目卷出现各种问题，
+                    所以必须重新配置LVM以仅扫描包含cinder-volumes卷组的设备；
+                    
+                    编辑/etc/lvm/lvm.conf文件并完成以下操作： 
+                        在devices部分中，添加一个接受/ dev / vdb设备的过滤器并拒绝所有其他设备：
+                            vim /etc/lvm/lvm.conf
+                            devices {
+                            ...
+                            filter = [ "a/vdb/", "r/.*/"]
+                    
+                        过滤器数组中的每个项目都以for接受或r为拒绝开头，并包含设备名称的正则表达式， 
+                        该阵列必须以r /.*/结尾以拒绝任何剩余的设备，可以使用vgs -vvvv命令来测试过滤器，
+                        如果存储节点在操作系统磁盘上使用LVM，则还必须将关联的设备添加到过滤器； 
+                            例如，如果/ dev / vda设备包含操作系统：
+                                filter = [ "a/vda/", "a/vdb/", "r/.*/"]
+                    
+                        同样，如果计算节点在操作系统磁盘上使用LVM，则还必须修改这些节点上/etc/lvm/lvm.conf
+                        文件中的筛选器以仅包含操作系统磁盘； 
+                            例如，如果/ dev / vda设备包含操作系统：
+                                filter = [ "a/vda/", "r/.*/"]
+                    
+                            所以，我们需要把操作系统盘也加进去：
+                                filter = [ "a/vda/","a/vdb/","r/.*/" ]
+
+            cinder 机器环境配置，安装cinder组件（在cinder上操作）：
+                yum install centos-release-openstack-queens
+                yum install python-openstackclient
+                yum install openstack-cinder targetcli python-keystone 
+
+                配置cinder相关配置文件：
+		            备份原始配置文件：cp /etc/cinder/cinder.conf /etc/cinder/cinder.conf.bak
+                    
+                    将原始配置文件去掉带”#“号行：
+                        cat /etc/cinder/cinder.conf.bak | grep -v ^# | uniq > /etc/cinder/cinder.conf
+                    
+                    编辑配置文件：vim /etc/cinder/cinder.conf
+                        在以下选项里分别添加以下参数：
+                            [DEFAULT]
+                            transport_url = rabbit://openstack:123456@controller
+                            auth_strategy = keystone
+                            my_ip = 192.168.80.152			#cinder管理网络IP地址；
+                            enabled_backends  =  lvm		#lvm为后端名称，任意命名；
+                            glance_api_servers = http://controller:9292
+                            
+                            [database]				#数据库设置；
+                            connection = mysql+pymysql://cinder:cinder_123456@controller/cinder 
+                            
+                            [keystone_authtoken]	    #keystone鉴权设置；
+                            auth_uri = http://controller:5000
+                            auth_url = http://controller:5000
+                            memcached_servers = controller:11211
+                            auth_type = password
+                            project_domain_id = default
+                            user_domain_id = default
+                            project_name = service
+                            username = cinder
+                            password = 123456
+                            
+                            [lvm]
+                            volume_driver  =  cinder.volume.drivers.lvm.LVMVolumeDriver 
+                            volume_group  =  cinder-volumes 
+                            iscsi_protocol  =  iscsi 
+                            iscsi_helper  =  lioadm
+                            
+                            [oslo_concurrency]
+                            lock_path = /var/lib/cinder/tmp
+                            
+                            在[lvm]部分中，使用LVM驱动程序，cinder-volumes卷组，iSCSI协议和相应的iSCSI服务配置LVM后端。
+                            如果该[lvm]部分不存在，就创建它；
+                    
+                启动服务并加入开机自启：
+                    systemctl start openstack-cinder-volume.service target.service
+                    systemctl enable openstack-cinder-volume.service target.service
+
+        在控制节点配置cinder（controller上操作）：
+            配置cinder数据库：
+                mysql -u root -p123456
+                
+                创建cinder数据库：CREATE DATABASE cinder；
+
+                授予对cinder数据库的适当访问权限：
+                    GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'localhost' IDENTIFIED BY 'cinder_123456'；
+                    GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'%' IDENTIFIED BY 'cinder_123456'；
+
+            创建cinder相关信息：
+	            运行openstack管理员环境脚本：. /root/admin-openrc
+                创建一个cinder用户，密码设置为cinder_123456：
+                    openstack user create --domain default --password-prompt cinder
+
+                添加admin角色到cinder用户：
+                    openstack role add --project service --user cinder admin	（此命令无输出结果）
+                
+                创建cinderv2和cinderv3服务实体：（注意：块存储服务需要两个服务实体）
+                    openstack service create --name cinderv2 --description "OpenStack Block Storage v2" volumev2
+                    openstack service create --name cinderv3 --description "OpenStack Block Storage v3" volumev3
+
+                创建块存储服务API端点：
+                    openstack endpoint create --region RegionOne \
+                    volumev2 public http://controller:8776/v2/%\(project_id\)s
+
+                    openstack endpoint create --region RegionOne \
+                    volumev2 internal http://controller:8776/v2/%\(project_id\)s
+
+                    openstack endpoint create --region RegionOne \
+                    volumev2 admin http://controller:8776/v2/%\(project_id\)s
+
+                    openstack endpoint create --region RegionOne \
+                    volumev3 public http://controller:8776/v3/%\(project_id\)s
+
+                    openstack endpoint create --region RegionOne \
+                    volumev3 internal http://controller:8776/v3/%\(project_id\)s
+
+                    openstack endpoint create --region RegionOne \
+                    volumev3 admin http://controller:8776/v3/%\(project_id\)s
+
+            
+            安装和配置cinder组件（controller上操作）：
+                yum install openstack-cinder
+	
+                备份原始配置文件：
+                    cp /etc/cinder/cinder.conf /etc/cinder/cinder.conf.bak
+
+                将原始配置文件去掉带”#“号行：
+                    cat /etc/cinder/cinder.conf.bak | grep -v ^# | uniq > /etc/cinder/cinder.conf
+
+                编辑配置文件：vim /etc/cinder/cinder.conf
+                    [DEFAULT]
+                    transport_url = rabbit://openstack:123456@controller
+                    auth_strategy = keystone
+                    my_ip = 192.168.80.150			#控制节点管理网口IP地址	
+                    
+                    [database]
+                    connection = mysql+pymysql://cinder:cinder_123456@controller/cinder 
+                    
+                    [keystone_authtoken]
+                    auth_uri = http://controller:5000
+                    auth_url = http://controller:5000
+                    memcached_servers = controller:11211
+                    auth_type = password
+                    project_domain_id = default
+                    user_domain_id = default
+                    project_name = service
+                    username = cinder
+                    password = cinder_123456
+                    
+                    [oslo_concurrency]
+                    lock_path = /var/lib/cinder/tmp
+            
+            同步块存储数据库：
+                su -s /bin/sh -c "cinder-manage db sync" cinder
+
+            配置计算服务使用块存储：
+                vim /etc/nova/nova.conf
+                    [cinder]
+                    os_region_name = RegionOne
+
+            启动/重启以下服务，将cinder服务加入开机自启：
+                systemctl restart openstack-nova-api.service
+                systemctl start openstack-cinder-api.service 
+                systemctl start openstack-cinder-scheduler.service
+                systemctl enable openstack-cinder-api.service 
+                systemctl enable openstack-cinder-scheduler.service
+
+        cinder验证：
+            在控制节点（controller）操作：
+                . /root/admin-openrc
+                openstack volume service list
+
+            创建一个5G大小的卷，名为volume1： 
+                openstack volume create --size 5 volume1
+
+            查看卷的状态：openstack volume list
