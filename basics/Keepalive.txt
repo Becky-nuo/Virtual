@@ -1,0 +1,200 @@
+Keepalive 网页高可用： 
+    配置：
+        主机web-a的操作：
+            systemctl start NetworkManager（打开网络管理工具）
+            nmtui 使用图形化界面配置网络
+            ip：192.168.113.20/24
+            
+            关闭防火墙：
+                systemctl stop firewalld 
+                systemctl disable firewalld
+                setenforce 0	#临时关闭selinux
+                vim /etc/sysconfig/selinux
+
+            配置yum安装源：
+                cd /etc/yum.repos.d
+                    mkdir backup
+                    mv Cen* backup
+                    vim local.repo
+                    [name]
+                    name=local
+                    baseurl=file:///opt
+                    enable=1
+                    gpgcheck=0
+
+                    mount /dev/cdrom /opt
+
+                安装:yum install httpd –y
+                修改主要名：hostnamectl set-hostname web-a
+                
+                启动httpd服务，并加入开机自启：
+                    systemctl start httpd
+                    systemctl enable httpd
+
+            测试：使用笔记本打开：http://192.168.113.20
+                
+                删除欢迎页：rm -rf /etc/httpd/conf.d/welcome.conf
+
+                创建并编辑虚拟主机配置文件vhost.conf
+                    vim /etc/httpd/conf.d/vhost.conf
+                    
+                    #03虚拟主机
+                        <VirtualHost *:80>
+                                    DocumentRoot  "/var/www/03 "
+                                    ServerName 03.qq.com
+                                    ErrorLog  "logs/03_error_log "
+                                    CustomLog  "logs/03_access_log " common
+                                        
+                        </VirtualHost>
+
+                    #04虚拟主机：
+                        <VirtualHost *:80>
+                            DocumentRoot  "/var/www/04 "
+                            ServerName 04.qq.com
+                            ErrorLog  "logs/04_error_log "
+                            CustomLog  "logs/04_access_log " common
+                            <Directory  "/var/www/04 ">
+                                    <RequireAll>
+                                        Require all granted
+                                    </RequireAll>
+                            </Directory>
+                        </VirtualHost>
+
+                    创建网页相关目录：
+                        mkdir /var/www/03
+                        mkdir /var/www/04
+
+                    创建网页文件：
+                        touch /var/www/03/index.html
+                        touch /var/www/04/index.html
+                        echo  "33333333333333333 "  >> /var/www/03/index.html
+                        echo  "4444444444444444 "  >> /var/www/04/index.html
+
+                    重启服务：systemctl restart httpd
+
+                    需要修改“user-PC”的hosts文件，加入以下内容：
+                        打开“C:\Windows\System32\drivers\etc\hosts”
+                            192.168.113.20 03.qq.com
+                            192.168.113.20 04.qq.com
+                
+                    测试，使用浏览器打开：
+                        http://03.qq.com
+                        http://04.qq.com
+        
+        主机Web-B操作：
+            systemctl start NetworkManager（打开网络管理工具）
+            nmtui 使用图形化界面配置网络
+            ip：192.168.113.20/24
+            
+            关闭防火墙：
+                systemctl stop firewalld 
+                systemctl disable firewalld
+                setenforce 0	#临时关闭selinux
+                vim /etc/sysconfig/selinux
+
+            配置yum安装源
+                （可远程复制web-a的配置:
+                scp root@192.168.113.20:/etc/yum.repos.d/local.repo /etc/yum.repos.d/）
+                
+                cd /etc/yum.repos.d
+                    mkdir backup
+                    mv Cen* backup
+                    vim local.repo
+                    [name]
+                    name=local
+                    baseurl=file:///opt
+                    enable=1
+                    gpgcheck=0
+
+                    mount /dev/cdrom /opt
+
+            安装:yum install httpd –y
+            启动并加入开机自启：
+                systemctl enable httpd
+                systemctl start httpd
+
+        配置web-b的虚拟主机：
+            远程复制web-a的配置：
+                cd /etc/httpd/conf.d
+                rm -rf welcomf.conf 	#删除欢迎页
+                scp root@192.168.113.20:/etc/httpd/conf.d/vhost.conf ./
+
+            创建网页目录：
+                mkdir /var/www/03
+                mkdir /var/www/04
+            
+            创建网页文件：
+                远程复制web-a的网页文件：
+                    cd /var/www/03
+                        scp root@192.168.113.20:/var/www/03/index.html ./
+                    
+                    cd /var/www/04
+                        scp root@192.168.113.20:/var/www/04/index.html ./
+
+            测试：
+                修改user-pc的hosts文件，修改为以下内容：
+                    192.168.113.30 03.qq.com
+                    192.168.113.30 04.qq.com
+
+
+            HA配置（keepalived配置）
+                Web-a操作：
+                    yum install keepalived
+                    
+                    编辑配置文件：
+                        vim /etc/keepalived/keepalived.conf
+                            ……
+                            router_id web-a
+                            #vrrp_strict							#加入此参数并注释掉
+                            vrrp_instance VI_1 {
+                                state MASTER
+                                interface ens33
+                                virtual_router_id 51
+                                priority 100
+                                advert_int 1
+                                authentication {
+                                    auth_type PASS
+                                    auth_pass 1111
+                                }
+                                virtual_ipaddress {
+                                192.168.113.200
+
+                    启动服务并加入开机自启
+                        systemctl start keepalived
+                        systemctl enable keepalived
+    
+        主机web-b的操作：
+            yum install keepalived
+            
+            编辑配置文件：
+                vim /etc/keepalived/keepalived.conf
+                ……
+                router_id web-b
+                #vrrp_strict			#加入此参数并注释掉
+                vrrp_instance VI_1 {
+                    state SLAVE
+                    interface ens33
+                    virtual_router_id 51
+                    priority 90
+                    advert_int 1
+                    authentication {
+                        auth_type PASS
+                        auth_pass 1111
+                    }
+                    virtual_ipaddress {
+                    192.168.113.200
+    
+            启动服务并加入开机自启
+                systemctl start keepalived
+                systemctl enable keepalived
+
+    测试：
+        修改user-pc的hosts，修改为VIP地址
+            192.168.113.200 03.qq.com
+            192.168.113.200 04.qq.com
+        
+        使用浏览器打开：
+            03.qq.com
+            04.qq.com
+        
+        关闭其中一台服务器，再测试网页
