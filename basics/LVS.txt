@@ -1,0 +1,168 @@
+LVS：
+    概述：
+        LVS（Linux Virtaul Server）
+        
+        三种工作模式：
+            NAT模式：
+                LVS服务器同时充当一台NAT网关，拥有公有IP，同时负责将针对此公共IP的请求依据算法将请求转发给LAN中的某台真实服务器（node），
+                node处理完成请求后将结果返回至LVS服务器，在由LVS Server将结果返回给用户，可以将内部网络隐藏；
+                
+                适用于同一个LAN中实现小型LB；
+
+            IP隧道模式（TUN）：
+                可以实现让集群中的节点处于不同网络段；
+                适用于节点部分处于Internet上；
+
+            直连路由模式（DR）：
+                当参与集群的计算机和LVS服务器在同一个网段时可以使用DR模式；
+                LVS服务器接收到请求包时直接送到参与集群的节点上，当该节点处理完请求后将直接把结果返回至用户，而不是通过LVS服务器；
+                适用于同一个LAN中实现较大型LB，DR的优势在于速度快，开销小；
+
+        LVS 8种算法 ：
+            轮询算法（rr）：将外部请求顺序的，轮流分配到集群中的节点上，不考虑节点的负载情况；
+            加权轮询（wrr）：在rr算法基础上考察节点的负载情况，主动让负载较轻的节点承担更多请求；
+            最少连接（lc）：LVS会把请求将给当前连接数最少的节点，直到该节点连接数不再为最少；
+            加权最少连接（wlc）：也由权重干预，再综合连接数情况控制请求分配； 
+            局部最少连接（lblc）：针对源请求IP地址的路由估算，把请求发送到与源请求IP路由最近的节点上。此算法一般用于远程或大规模的群集组；
+            
+            带有复制的局部最少连接（lblcr）：在lblc算法基础上增加一个节点列表，先依据lblc计算出与源请求IP地址最近的一组节点，
+            再决定把请求发送到最近一组节点中的最近一台节点，若此节点已“超载”，则依据lc原则找到最少连接的节点，并将此节点加入集群组中，
+            再将请求转到此节点；
+            
+            目标地址散列算法（dh）：随机；
+            原地址散列算法（sh）：随机；
+
+    三种模式：
+        在线安装：yum install ip 0303 份0vsadm -y
+        
+        参数：ipvsadm -C 清空kernel中的lvs列表（清空虚拟主机及转发记录）
+            ipvsadm -A -t 虚拟主机IP：80 -s 算法： #声明一个虚拟主机
+            ipvsadm -a -t 虚拟主机IP：80 -r 真实服务器IP：80 -i 或 -g 或 -m
+            #（说明：-i TUN模式 ， -g DR模式 ，-m NAT模式）
+
+        例一：（NAT模式）
+            在LVS Server上
+                安装软件：yum install ipvsadm iptables-services -y
+
+                编辑nat模式（写一个脚本）：
+                    vim lvs-nat.sh
+                        #!/bin/bash
+                        echo 1 > /proc/sys/net/ipv4/ip_forward #临时开启路由转发
+                        iptables -F
+                        iptables -X
+                        iptables -Z
+                        iptables -t nat -A POSTROUTING -s 192.168.1.0/24 -j MASQUERADE
+                        ipvsadm -C
+                        ipvsadm -A -t 172.16.0.1:80 -s wrr
+                        ipvsadm -a -t 172.16.0.1:80 -r 192.168.1.2:80 -m -w 2 #权重为2 
+                        ipvsadm -a -t 172.16.0.1:80 -r 192.168.1.3:80 -m -w 3 #权重为3
+                    #注：权重值越大，被分配到的请求越多，不可为0；
+
+            真实服务器1：
+                yum install httpd -y
+                echo "web111111-test" > /var/www/html/index.html
+                chmod 705 index.html
+                systemctl restart httpd
+            
+            真实服务器2：
+                yum install httpd -y
+                echo "web222222-test" > /var/www/html/index.html
+                chmod 705 index.html
+                systemctl restart httpd
+
+            客户端测试：
+                elinks http:172.16.0.1
+
+                可用ipvsadm命令查看：
+                    ActiveConn 为目前正在活动的连接数；
+                    InActConn 为目前不活动的连接数；
+        
+        
+        例二：（TUN模式）
+            注：TUN，即IP Tunneling，LVS设备接收到外界请求，依据算法将该请求通过IP隧道转发到相应的节点，节点处理完请求后，将结果直接返回用户；
+            
+            在LVS Server：
+                yum install ipvsadm iptables-services -y
+            
+                vim lvs-tun.sh
+                    #!/bin/bash
+                    VIP=192.168.0.254 #声明一个变量VIP
+                    RIP1=192.168.0.2 #声明一个变量RIP1
+                    RIP2=192.168.0.3 #声明一个变量RIP2
+                    ipvsadm -C
+                    ifconfig eno16777736:0 $VIP broadcast $VIP netmask 255.255.255.255 up
+                    
+                    #为LVS服务器子接口 eno16777736:0配置IP信息，并启用
+                    route add -host $VIP dev eno16777736:0 #创建一个子接口路由条目
+                        ipvsadm -A -t $VIP:80 -s wlc
+                        ipvsadm -a -t $VIP:80 -r $RIP1:80 -i -w 1
+                        ipvsadm -a -t $VIP:80 -r $RIP2:80 -i -w 1
+
+            在真实服务器1，2：
+                yum install httpd -y
+                echo "web1111111111111-test" > /var/www/html/index.html    #真实服务器1；
+                echo "web2222222222222-test" > /var/www/html/index.html    #真实服务器2；
+                chmod 705 /var/www/html/index.html
+                systemctl start httpd
+
+                vim web.sh
+                    #!/bin/bash
+                    VIP=192.168.0.254
+                    ifconfig tunl0 down
+                    ifconfig tunl0 up
+                    echo 1 > /proc/sys/net/ipv4/conf/tunl0/arp_ignore
+                    echo 2 > /proc/sys/net/ipv4/conf/tunl0/arp_announce
+                    echo 0 > /proc/sys/net/ipv4/conf/tunl0/rp_filter
+                    echo 1 > /proc/sys/net/ipv4/conf/all/arp_ignore
+                    echo 2 > /proc/sys/net/ipv4/conf/all/arp_announce
+                    ifconfig tunl0 $VIP broadcast $VIP netmask 255.255.255.255 up
+                    route add -host $VIP dev tunl0
+        
+        例三：（DR模式）
+            注：DR，即Direct Routing.当LVS收到请求，依据指定算法发送到相应节点，节点处理完成后直接将结果返回至用户；
+
+            在LVS Server：
+                yum install ipvsadm -y
+                vim lvs-dr.sh
+                #!/bin/bash
+                VIP=192.168.0.254
+                RIP1=192.168.0.3
+                RIP2=192.168.0.4
+                ipvsadm -C
+                ifconfig eno16777736:0 $VIP broadcast $VIP netmask 255.255.255.255 up
+                route add -host $VIP dev eno16777736
+                ipvsadm -A -t $VIP:80 -s wlc
+                ipvsadm -a -t $VIP:80 -r $RIP1:80 -g -w 1
+                ipvsadm -a -t $VIP:80 -r $RIP2:80 -g -w 1
+
+            在真实服务器1，2：
+                yum install httpd -y
+                echo "web11111111111 test" > /var/www/html/index.html    #真实服务器1 ；
+                echo "web22222222222 test" > /var/www/html/index.html    #真实服务器2；
+                chmod 705 index.html
+                systemctl restart httpd
+
+                vim web.sh
+                    #!/bin/bash
+                    VIP=192.168.0.254
+                    ifconfig lo:0 $VIP netmask 255.255.255.255 broadcast $VIP 
+                    route add -host $VIP dev lo:0
+                    echo 1 > /proc/sys/net/ipv4/conf/lo/arp_ignore
+                    echo 2 > /proc/sys/net/ipv4/conf/lo/arp_announce
+                    echo 1 > /proc/sys/net/ipv4/conf/all/arp_ignore
+                    echo 2 > /proc/sys/net/ipv4/conf/all/arp_announce
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
