@@ -105,7 +105,7 @@ LVS：
                 chmod 705 /var/www/html/index.html
                 systemctl start httpd
 
-                vim web.sh
+                vim web.sh：
                     #!/bin/bash
                     VIP=192.168.0.254
                     ifconfig tunl0 down
@@ -142,7 +142,7 @@ LVS：
                 chmod 705 index.html
                 systemctl restart httpd
 
-                vim web.sh
+                vim web.sh：
                     #!/bin/bash
                     VIP=192.168.0.254
                     ifconfig lo:0 $VIP netmask 255.255.255.255 broadcast $VIP 
