@@ -1,0 +1,307 @@
+计算节点代理服务组件：Nova
+    Nova组件介绍：
+        含义：
+            Nova就是一套虚拟化管理程序，用于管理用户的虚拟机实例，根据用户需求来实现对虚拟机的开关机、调配CPU、RAM等操作；
+            Nova包括许多小组件：nova-api，nova-compute，nova-scheduler，nova-conductor，nova-novncproxy，nova-console；
+
+        功能：
+            nova-api：是一个交互接口，管理者可以通过这个接口来管理内部基础设施，也可以通过这个接口向用户提供服务，
+            基于web的管理也是通过这个接口，然后向消息队列发送消息，达到资源调度的功能；
+            
+            nova-compute：用于管理实例生命周期。通过消息队列接收请求，并承担操作工作；
+            nova-scheduler：是一个拥有把nova-API调用映射为Open Stack功能的组件，会根据诸如CPU构架、可用域的物理距离、内存、负载等作出调度决定；
+            nova-conductor：负责数据库的访问权限控制，避免nova-compute直接访问数据库；
+            nova-novncproxy：提供通过VNC连接访问运行实例的代理；
+            nova-console：为控制台代理提供的用户授权令牌，此服务运行才能使控制台代理工作；
+            nova-placement-api service：跟踪每个提供者的库存和使用情况；
+            
+            nova-consoleauth daemon（守护进程）：为控制台代理提供的用户授权令牌。见 nova-novncproxy和nova-xvpvncproxy，
+            此服务必须运行以使控制台代理正常工作。您可以在群集配置中针对单个nova-consoleauth服务运行任一类型的代理；
+            
+            nova-novncproxy daemon：提供通过VNC连接访问正在运行的实例的代理。支持基于浏览器的novnc客户端；
+
+
+    工作流程：
+        外部向nova api请求了虚拟机资源，并附上虚拟机参数之后，nova-compute根据从队列里取出的虚拟机信息向glance请求镜像，向neutron请求网络，
+        向cinder请求卷设备，最终调用Hypervisor创建虚拟机；
+
+    
+    Nova-api安装：
+        Nova组件部署：
+            Nova各组件分布：
+                controller：
+                    nova-api；
+                    nova-conductor；
+                    nova-console；
+                    nova-novncproxy；
+                    nova-scheduler；
+
+                compute 01：
+                    nova-compute；
+
+                compute 02：
+                    nova-compute；
+
+                compute 03：
+                    nova-compute；
+
+        安装控制节点（controller）的nova组件：
+	        创建nova数据库：
+	            mysql -uroot -p123456	
+                # -u root指定登录mariaDB的用户为root
+		        #-p123456 root用户登录maraiDB的密码为“123456”
+
+                创建nova组件相关数据库：
+                    CREATE DATABASE nova_api；
+                    CREATE DATABASE Nova；
+                    CREATE DATABASE nova_cell0；
+
+                创建nova数据库相关用户以及访问权限：
+                    GRANT ALL PRIVILEGES ON nova_api.* TO 'nova'@'localhost' IDENTIFIED BY 'nova_123456'；
+                    GRANT ALL PRIVILEGES ON nova_api.* TO 'nova'@'%' IDENTIFIED BY 'nova_123456'；
+                    GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'localhost' IDENTIFIED BY 'nova_123456'；
+                    GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'%' IDENTIFIED BY 'nova_123456'；
+                    GRANT ALL PRIVILEGES ON nova_cell0.* TO 'nova'@'localhost' IDENTIFIED BY 'nova_123456'；
+                    GRANT ALL PRIVILEGES ON nova_cell0.* TO 'nova'@'%' IDENTIFIED BY 'nova123456'；
+            
+            
+            创建nova相关信息：
+                在控制节点（controller）上创建nova用户，名为nova：
+                    先执行环境变量： . /root/admin-openrc
+                    在openstack默认域中创建nova用户：（执行后需要设置密码:123456，并确认密码）
+                    openstack user create --domain default --password-prompt nova；
+
+                将nova用户在service项目（project）中赋予管理员角色admin：
+                    openstack role add --project service --user nova admin（执行后无返回结果即正常）；
+
+                创建一个名为compute的服务（service）实体，描述为“OpenStack Compute”：
+                    openstack service create --name nova --description "OpenStack Compute" compute； 
+                    
+                为compute服务实体在RegionOne区域中创建三种供访问的Endpoint API：
+                    openstack endpoint create --region RegionOne compute public http://controller:8774/v2.1；
+                    openstack endpoint create --region RegionOne compute internal http://controller:8774/v2.1；
+                    openstack endpoint create --region RegionOne compute admin http://controller:8774/v2.1；
+
+                在openstack默认域中创建placement用户：（执行后需设置密码）：placement_123456，并确认密码）
+                    openstack user create --domain default --password-prompt placement
+
+                将placement用户在service项目（project）中赋予管理员角色admin：
+                    openstack role add --project service --user placement admin（执行后无返回结果即正常）
+
+                创建一个名为placement的服务（service）实体，描述为“Placement API”：
+                    openstack service create --name placement --description "Placement API" placement
+
+                为Placement服务实体在RegionOne区域中创建三种供访问的Endpoint API：
+                    openstack endpoint create --region RegionOne placement public http://controller:8778
+                    openstack endpoint create --region RegionOne placement internal http://controller:8778
+                    openstack endpoint create --region RegionOne placement admin http://controller:8778
+
+
+            安装并配置nova组件：
+                yum install openstack-nova-api \
+                openstack-nova-conductor \
+                openstack-nova-console \
+                openstack-nova-novncproxy \
+                openstack-nova-scheduler \
+                openstack-nova-placement-api -y
+
+                配置nova.conf配置文件：/etc/nova/nova.conf
+                    备份原始配置文件：cp /etc/nova/nova.conf /etc/nova/nova.conf.bak
+                    将原始配置文件去掉带”#“号行：cat /etc/nova/nova.conf.bak | grep -v ^# | uniq > /etc/nova/nova.conf
+                
+                    编辑配置文件：vim /etc/nova/nova.conf
+                        在以下选项里分别添加以下参数：
+                            [DEFAULT]
+                            enabled_apis = osapi_compute,metadata
+                            transport_url = rabbit://openstack:123456@controller
+                            my_ip = 192.168.80.150							#本机地址
+                            use_neutron = True
+                            firewall_driver = nova.virt.firewall.NoopFirewallDriver	#需要关闭自带firewalld服务
+                            
+                            [api_database]									#数据库设置
+                            connection=mysql+pymysql://nova:nova_123456@controller/nova_api
+                            
+                            [database]										#数据库设置
+                            connection = mysql+pymysql://nova:nova_123456@controller/nova
+                            
+                            [api]												#API验证设置
+                            auth_strategy = keystone
+                            
+                            [keystone_authtoken]								#keystone鉴权设置
+                            auth_url = http://controller:5000/v3					#鉴权url
+                            memcached_servers = controller:11211				#memcached服务链接
+                            auth_type = password								#认证方式
+                            project_domain_name = default						#指定项目域
+                            user_domain_name = default						#指定用户域
+                            project_name = service							#指定项目
+                            username = nova									#指定服务用户名
+                            password = nova_123456								#服务用户名密码
+                            
+                            [vnc]											#vnc设置
+                            enabled = true
+                            server_listen = $my_ip
+                            server_proxyclient_address = $my_ip
+                            
+                            [glance]											#glance设置
+                            api_servers = http://controller:9292 
+                            
+                            [oslo_concurrency]
+                            lock_path = /var/lib/nova/tmp
+                            
+                            [placement]										#placement设置
+                            os_region_name = RegionOne
+                            project_domain_name = Default
+                            project_name = service
+                            auth_type = password
+                            user_domain_name = Default
+                            auth_url = http://controller:5000/v3
+                            username = placement
+                            password = placement_123456
+
+                        保存退出，确保已关闭系统自带防火墙：
+                            systemctl stop firewalld
+                            systemctl disable firewalld
+
+                基于补丁bug，还需要配置Placement API配置文件，在第13行加入以下参数
+                    vim /etc/httpd/conf.d/00-nova-placement-api.conf：
+                        <Directory /usr/bin>
+                        <IfVersion >= 2.4>
+                            Require all granted
+                        </IfVersion>
+                        <IfVersion < 2.4>
+                            Order allow,deny
+                            Allow from all
+                        </IfVersion>
+                        </Directory>
+                    
+                    重启http服务：systemctl restart httpd；
+
+
+                填充nova-api数据库：su -s /bin/sh -c "nova-manage api_db sync" nova；
+                填充cell0数据库：su -s /bin/sh -c "nova-manage cell_v2 map_cell0" nova；
+                
+                创建cell1的cell：
+	                su -s /bin/sh -c "nova-manage cell_v2 create_cell --name=cell1 --verbose" nova；
+                    正常返回一个连串无规则代码即可：3d7e1ba3-d40e-404f-9138-4581a9531a08；
+
+                同步nova数据库：su -s /bin/sh -c "nova-manage db sync" nova；
+                较验cell0和cell1的注册是否正常：nova-manage cell_v2 list_cells；
+
+            启动服务并加入开机自启：
+                systemctl enable openstack-nova-api.service \；
+                openstack-nova-consoleauth.service openstack-nova-scheduler.service \；
+                openstack-nova-conductor.service openstack-nova-novncproxy.service；
+                systemctl start openstack-nova-api.service \；
+                openstack-nova-consoleauth.service openstack-nova-scheduler.service \；
+                openstack-nova-conductor.service openstack-nova-novncproxy.service；
+
+
+    Nova-compute组件安装：
+        安装计算节点（compute）的nova-compute组件：
+	        实验拓扑图：
+                controller：192.168.80.150
+                compute：192.168.80.151
+	
+	        配置计算节点（compute）的域名解析与yum安装源： 
+		        从控制节点拷贝/etc/hosts文件，确保域名解析一致：
+		        scp root@192.168.80.150:/etc/hosts /etc/hosts
+
+                安装openstack-queen源以及openstack客户端：
+		            yum install centos-release-openstack-queens
+		            yum install python-openstackclient
+	
+                安装chrony，确保与控制节点（controller）时间同步
+                    yum install chrony
+                    
+                    配置时间同步：vi /etc/chrony.conf
+                        在第3行-6行前加“#”注释掉，不使用默认的时间同步服务器，在末行添加：
+                            server controller	iburst		#指定ntp服务器为controller
+                        
+                        重启服务：
+                            systemctl restart chronyd
+                            systemctl enable chronyd
+                        
+                        较验时间同步：chronyc sources -v		下图*号表示时间已同步（需要等待一段时间）；
+
+            安装nova-compute并编辑相关配置文件：
+                yum install openstack-nova-compute
+
+                编辑nova配置文件：/etc/nova/nova.conf
+                备份原始配置文件：cp /etc/nova/nova.conf /etc/nova/nova.conf.bak
+                将原始配置文件去掉带”#“号行：cat /etc/nova/nova.conf.bak | grep -v ^# | uniq > /etc/nova/nova.conf
+
+                编辑配置文件：vim /etc/nova/nova.conf
+
+                    [DEFAULT]
+                    enabled_apis = osapi_compute,metadata
+                    transport_url = rabbit://openstack:123456@controller
+                    my_ip = 192.168.80.151				#计算节点的管理网口IP 
+                    use_neutron = True
+                    firewall_driver = nova.virt.firewall.NoopFirewallDriver
+                    
+                    [api]
+                    auth_strategy = keystone
+                    
+                    [keystone_authtoken]
+                    auth_url = http://controller:5000/v3
+                    memcached_servers = controller:11211
+                    auth_type = password
+                    project_domain_name = default
+                    user_domain_name = default
+                    project_name = service
+                    username = nova
+                    password = nova_123456
+                    
+                    [vnc]
+                    enabled = True
+                    server_listen = 0.0.0.0
+                    server_proxyclient_address = $my_ip
+                    novncproxy_base_url = http://controller:6080/vnc_auto.html
+                    
+                    [glance]
+                    api_servers = http://controller:9292
+                    
+                    [oslo_concurrency]
+                    lock_path = /var/lib/nova/tmp
+                    
+                    [placement]
+                    os_region_name = RegionOne
+                    project_domain_name = Default
+                    project_name = service
+                    auth_type = password
+                    user_domain_name = Default
+                    auth_url = http://controller:5000/v3
+                    username = placement
+                    password = placement_123456
+
+        
+            检测计算节点是否支持硬件虚拟化加速，（返回值1，为支持）：
+                egrep -c '(vmx|svm)' /proc/cpuinfo
+
+                由于本实验是由虚拟机来做计算节点，所以返回值不>1.需要在/etc/nova/nova.conf
+                配置文件的[libvirt]选项中加入以下内容：
+                    vi /etc/nova/nova.conf
+                        [libvirt]
+                        virt_type = qemu
+
+                    （Vmware WorkStation 工具，也需要开启虚拟机Intel-VT技术）
+
+            
+            启动服务并加入开机自启：
+                systemctl enable libvirtd.service openstack-nova-compute.service
+                systemctl start libvirtd.service openstack-nova-compute.service
+
+    
+        控制节点（controller）查看/添加计算节点（compute）
+            在控制节点（controller）查看当前所有计算节点：
+                . /root/admin-openrc				#openstack管理员环境变量
+                openstack compute service list --service nova-compute
+
+            如果有新加入的计算节点，需要执行以下命令来发现新计算节点：
+                su -s /bin/sh -c "nova-manage cell_v2 discover_hosts --verbose" nova
+            
+            或者在控制节点的nova.conf配置文件里，设置自动发现计算节点的时间间隔
+                vi /etc/nova/nova.conf
+                [scheduler]
+                discover_hosts_in_cells_interval = 300			#默认单位：秒
+            
