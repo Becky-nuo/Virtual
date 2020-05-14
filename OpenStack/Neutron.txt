@@ -1,0 +1,476 @@
+网络服务组件-Neutron：
+    Neutron 组件介绍：
+        SDN（Software Define Networking）：软件定义网络。其具有的灵活性和自动化优势使其成为云时代网络管理的主流，
+        Neutron的设计目标是实现“网络即服务”（Network as a Service），为了达到这一目标，在设计上遵循了基于SDN实现网络虚拟化的原则，
+        在实现上充分利用了Linux系统上的各种网络相关技术；
+
+        neutron是openstack核心项目之一，提供云计算环境下的虚拟网络功能，OpenStack网络（neutron）管理OpenStack环境中
+        所有虚拟网络基础设施（VNI），物理网络基础设施（PNI）的接入层；
+
+        主要功能：为云计算提供虚拟的网络功能，为每个不同的租户建立独立的网路环境；
+
+        Neutron的网络模式：
+            Network的网络模式：Flat/FlatDHCP、VLAN/VxLAN、GRE；
+            
+            网络模式：Flat/FlatDHCP
+                flat网络是无vlan 标签的网络；
+                flat网络中的实例能与位于同一网络的实例通信，并且可以跨多个节点；
+                
+                FlatDHCP：与Flat模式一样，从ip池取出ip分配给虚拟机实例，所有的实例都在计算节点中和一个网桥相关，
+                不过，在这个模式里，控制节点做了更多一些的配置，尝试和以太网设备(默认为eth0)建立网桥，
+                
+                通过dhcp自动为实例分配flat网络的固定ip，可以回收释放ip；
+                    网络控制器（运行nova-network服务的节点）运行dusmasq作为DHCP服务器监听这个网桥；
+                    实例做一次dhcpdiscover操作，发送请求；
+                    网络控制器把从一个指定的子网中获得的IP地址响应给虚拟机实例；
+                    实例通过网络控制器与外部实现互相访问；
+                
+                Flat 模式和 FlatDHCP 模式其实区别不大，都是基于网桥网络，只是 FLat 模式需要管理员手动配置（包括配置网桥和外部的 DHCP 设备）；
+
+            网络模式：VLAN/VxLan
+                VLAN网络是具有802.1q 标签的网络，vlan是一个二层的广播域，同一vlan中的实例可以通信，不同vlan只能通过router通信；
+                vlan网络可以跨节点，是应用最广泛的网络类型，VLAN（Virtual Local Area Network）的中文名为"虚拟局域网"；
+                VLAN 是一种将局域网设备从逻辑上划分成一个个网段，从而实现虚拟工作组的新兴数据交换技术；
+
+                OpenStack的默认网络管理模式，在以下选项没有设置的时候默认为vlan：
+                    network_manager=nova.network.manager.FlatDHCPManager或者FlatManager
+
+                VLAN 模式与 Flat 模式的区别：
+                    在 Flat 模式下，管理员的工作流程应该是这样的：
+                        为所有租户创建一个 IP 池：
+                            nova-manage network create --fixed_range_v4=10.0.0.0/16 --label=pulbic
+                        创建租户：
+                        租户创建虚拟机，为虚拟机分配 IP 池中的可用 IP：
+                            DB 中虚拟机信息可能如下图，从图中我们看到 2 个虚拟机处于同一网段；
+                        
+                        在 VLAN 模式下流程如下：
+                            创建新的租户，并记下租户的标识
+                            为该租户创建独占的 fixed_ip 段：
+                                nova-manage network create --fixed_range_v4=10.0.1.0/24 –vlan=102 --project_id= " tenantIDF "
+                            
+                            租户创建虚拟机，从租户的私有 IP 段内分配 IP 给虚拟机
+                                因此，与 Flat 模式相比，VLAN 模式为网络增加了：将网络与租户关联和为网络分配一个 VLAN 号；
+
+            网络模式：VxLAN
+                VxLAN是基于隧道技术的overlay网络；
+                
+                VxLAN网络通过唯一的segmentationID（VNI）与其他VxLAN网络区分，VxLAN中数据包会通过VNI封闭成UPD包进行传输，
+                因为二层的包通过封装在三层传输，能够克服vlan和物理网络基础设施的限制；
+
+            网络模式：GRE
+                GRE与VxLAN类似的一种overlay网络。主要区别在于使用IP包而非UDP进行封装，不同network之间在二层上是隔离的
+        
+        Neutron管理的网络资源：Netrowk，Subnet，Port
+            subnet是一个IPv4或者IPv6地址段，实例的IP从subnet中分配，每个subnet需要定义IP地址的范围和掩码；
+            subnet和network是1对多关系，一个subnet只能属于某个network，一个network可以有多个subnet，这些subnet可以是不同的IP段，但不能重叠；
+            
+                例：
+                    network A subnet A-a:10.10.1.0/24 { "start ": "10.10.1.1 ", "end ": "10.10.1.50 "}
+                    network A subnet A-a:10.10.1.0/24 { "start ": "10.10.1.51 ", "end ": "10.10.1.50 100"}
+                    network B subnet A-a:10.10.1.0/24 { "start ": "10.10.1.1 ", "end ": "10.10.1.50"}
+                    
+            port可以看做虚拟机交换机上的一个端口；
+            port上定义了MAC地址和IP地址，当实例的虚拟网卡VIF（Virtual Interface）绑定到port时，port会将MAC和IP分配给VIF；
+            port与subnet是1对多关系，一个port必须属于某个subnet，一个subnet可以有多个port；
+        
+        Neutron的发展：
+            在Openstack网络组件没有独立出来之前，Openstack最初nova-network网络模型，单一平面网络：
+        
+            缺点：
+                存在单一网络瓶颈，缺乏可伸缩性；
+                缺乏合适的多租户隔离；
+
+            Openstack nova-network独立成为单独的组件Neutron后，形象的网络模型的多平面网络、混合平面私有网络；
+
+
+        Neutron网络的创建过程：
+            Neutron 网络目的是为 OpenStack 云更灵活地划分物理网络，在多租户环境下提供给每个租户独立的网络环境，
+            Neutron 提供 API 来实现这种目标；
+            
+            Neutron 中用户可以创建自己的网络对象，如果要和物理环境下的概念映射的话，这个网络对象相当于一个巨大的交换机，
+            可以拥有无限多个动态可创建和销毁的虚拟端口；
+
+            在 Horizon 上创建 Neutron 网络过程如下：
+                管理员拿到一组可在互联网上寻址的 IP 地址，并创建一个外部网络和子网；
+                租户创建一个网络和子网；
+                租户创建一个路由器并且连接租户子网和外部网络；
+                租户创建虚拟机；
+
+            Openstack 网络类型：
+                一个标准的 OpenStack 网络设置有 4 个不同的物理数据中心网络：
+                    管理网络：用于 OpenStack 各组件之间的内部通信；
+                    数据网络：用于云部署中虚拟数据之间的通信；
+                    外部网络：公共网络，外部或 internet 可以访问的网络；
+                    API 网络：暴露所有的 OpenStack APIs，包括 OpenStack 网络 API 给租户们；
+
+    Neutron 安装：
+        Neutron组件部署规划：
+	        Neutron各组件分布图：
+                controller：
+                    eth0：192.168.80.150/24
+                    eth1：192.168.88.150/24
+                        Openstack-neutron
+                        neutron-m12
+                        neutron-linuxbridge
+                        neutron-dhcp
+
+                compute：
+                    eth0:192.168.80.151/24
+                    eth1:192.168.88.151/24
+                        neutron-linuxbridge
+                        ebtables
+                        ipset
+
+
+                在openstack的生产环境中，除开存储。网络，一般会有三种网络平面：管理网络，隧道网络，外部网络；
+                
+                    管理网络（management/API网络）： 
+                        提供系统管理相关功能，用于节点之间各服务组件内部通信以及对数据库服务的访问，所有节点都需要连接到管理网络，
+                        这里管理网络也承载了API网络的流量，将API网络和管理网络合并，OpenStack各组件通过API网络向用户暴露API服务；
+                    
+                    隧道网络（tunnel网络或self-service网络）： 
+                        提供租户虚拟网络的承载网络（VXLAN or GRE），openstack里面使用gre或者vxlan模式，需要有隧道网络；
+                        隧道网络采用了点到点通信协议代替了交换连接，在openstack里，这个tunnel就是虚拟机走网络数据流量用的；
+
+                    外部网络(external网络或者provider网络)： 
+                        openstack网络至少要包括一个外部网络，这个网络能够访问OpenStack安装环境之外的网络，并且非openstack环境中的设备能够访问openstack
+                        外部网络的某个IP，另外外部网络为OpenStack环境中的虚拟机提供浮动IP，实现openstack外部网络对内部虚拟机实例的访问；
+                    
+                    本次将管理网络和外部网络合二为一，管理用的也是外部网络；
+        
+        安装控制节点（controller）的neutron组件：
+	        创建neutron数据库：
+		        mysql -u root -p123456	
+                # -u root指定登录mariaDB的用户为root
+		        #-p123456 root用户登录maraiDB的密码为“123456”
+
+                创建neutron组件相关数据库：CREATE DATABASE neutron；
+
+                创建neutron数据库相关用户以及访问权限：
+                    GRANT ALL PRIVILEGES ON neutron.* TO 'neutron'@'localhost' IDENTIFIED BY 'NEUTRON_DBPASS'；
+                    GRANT ALL PRIVILEGES ON neutron.* TO 'neutron'@'%'IDENTIFIED BY 'NEUTRON_DBPASS'；
+            
+            创建neutron相关信息：
+                在控制节点（controller）上创建neutron用户，名为neutron：
+                    先执行环境变量： . /root/admin-openrc
+                    再openstack默认域中创建nova用户：（执行后需要设置密码:123456，并确认密码）
+                        openstack user create --domain default --password-prompt neutron	
+
+                将neutron用户在service项目（project）中赋予管理员角色admin：
+                    openstack role add --project service --user neutron admin
+
+                创建一个名为network的服务（service）实体，描述为“OpenStack Networking”：
+                    openstack service create --name neutron \
+                    --description "OpenStack Networking" network
+
+                为neutron服务实体在RegionOne区域中创建三种供访问的Endpoint API：
+                    openstack endpoint create --region RegionOne \
+                    network public http://controller:9696
+
+                    openstack endpoint create --region RegionOne \
+                    network internal http://controller:9696
+
+                    openstack endpoint create --region RegionOne \
+                    network admin http://controller:9696
+
+        配置网络：以下两项配置二选一； 
+            1.Networking Option 1: Provider networks 
+            2.Networking Option 2: Self-service networks
+                选项1部署了仅支持将实例附加到提供者（外部）网络的最简单的可能架构，没有自助服务（专用）网络，路由器或浮动IP地址，
+                只有管理员或其他特权用户才能管理提供商网络；
+                
+                选项2增加了选项1，其中支持将实例附加到自助服务网络的第3层服务； 
+                
+                演示或其他非特权用户可以管理自助服务网络，包括提供自助服务和提供商网络之间连接的路由器，
+                此外，浮动IP地址可提供与使用来自外部网络（如Internet）的自助服务网络的实例的连接， 
+                自助服务网络通常使用隧道网络，隧道网络协议（如VXLAN），选项2还支持将实例附加到提供商网络；
+                
+            Networking Option 1: Provider networks：
+                安装组件（控制节点）：
+                    yum install openstack-neutron openstack-neutron-ml2 \
+                    openstack-neutron-linuxbridge ebtables -y
+                
+                配置neutron相关配置文件：
+                    配置neutron主配置文件：/etc/neutron/neutron.conf
+		                备份原始配置文件：cp /etc/neutron/neutron.conf /etc/neutron/neutron.conf.bak
+                        
+                        将原始配置文件去掉带”#“号行：
+                            cat /etc/neutron/neutron.conf.bak | grep -v ^# | uniq > /etc/neutron/neutron.conf
+    
+                        编辑配置文件：vim /etc/neutron/neutron.conf
+
+                        在以下选项里分别添加以下参数：
+                            [DEFAULT]
+                            core_plugin = ml2								#启动Modular Layer 2模块
+                            service_plugins = router
+                            allow_overlapping_ips = true
+                            transport_url = rabbit://openstack:RABBIT_PASS@controller
+                            auth_strategy = keystone
+                            notify_nova_on_port_status_changes = true
+                            notify_nova_on_port_data_changes = true
+                            
+                            [database]										#数据库设置
+                            connection = mysql+pymysql://neutron:NEUTRON_DBPASS@controller/neutron 
+                            
+                            [keystone_authtoken]								#keystone鉴权设置
+                            auth_uri = http://controller:5000						#鉴权uri
+                            auth_url = http://controller:35357					#鉴权url
+                            memcached_servers = controller:11211				#memcached服务链接
+                            auth_type = password								#认证类型
+                            project_domain_name = default						#指定项目域
+                            user_domain_name = default						#指定用户域
+                            project_name = service							#指定项目
+                            username = neutron								#指定服务用户名
+                            password = 123456								#服务用户名密码
+                            
+                            [nova]											#nova相关选项
+                            auth_url = http://controller:35357
+                            auth_type = password
+                            project_domain_name = default
+                            user_domain_name = default
+                            region_name = RegionOne
+                            project_name = service
+                            username = nova
+                            password = 123456
+                            
+                            [oslo_concurrency]
+                            lock_path = /var/lib/neutron/tmp
+                    
+                    配置ml2模块配置文件：/etc/neutron/plugins/ml2/ml2_conf.ini
+	                    备份原始配置文件：
+                            cp /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugins/ml2/ml2_conf.ini.bak
+
+                        将原始配置文件去掉带”#“号行：
+                            cat /etc/neutron/plugins/ml2/ml2_conf.ini.bak | grep -v ^# | uniq > /etc/neutron/plugins/ml2/ml2_conf.ini
+                        
+                        编辑配置文件：vim /etc/neutron/plugins/ml2/ml2_conf.ini
+                            [ml2]
+                            type_drivers = flat,vlan,vxlan
+                            tenant_network_types = vxlan
+                            mechanism_drivers = linuxbridge,l2population
+                            extension_drivers = port_security 
+                            [ml2_type_flat]
+                            flat_networks = provider
+                            [ml2_type_vxlan]
+                            vni_ranges = 1:1000
+                            [securitygroup]
+                            enable_ipset = true
+
+                    配置网桥配置文件：/etc/neutron/plugins/ml2/linuxbridge_agent.ini
+                        备份原始配置文件：
+                            cp /etc/neutron/plugins/ml2/linuxbridge_agent.ini /etc/neutron/plugins/ml2/linuxbridge_agent.ini.bak
+                        
+                        将原始配置文件去掉带”#“号行：
+                            cd /etc/neutron/plugins/ml2
+                            cat linuxbridge_agent.ini.bak | grep -v ^# | uniq > linuxbridge_agent.ini
+
+                        编辑配置文件：vim /etc/neutron/plugins/ml2/linuxbridge_agent.ini
+                            [linux_bridge]
+                            physical_interface_mappings = provider:ens33
+                            #处此的“ens33”为控制节点的外部/管理网络网卡名
+                            
+                            [vxlan]
+                            enable_vxlan = true
+                            local_ip = 192.168.91.70			#控制节点隧道网口IP地址
+                            l2_population = true 
+                            
+                            [securitygroup]
+                            enable_security_group = true
+                            firewall_driver = neutron.agent.linux.iptables_firewall.IptablesFirewallDriver
+                            ：保存退出
+                            
+                            注意：由于网桥工作于数据链路层，在iptables没有开启 bridge-nf时，数据会直接经过网桥转发，结果就是对FORWARD的设置失效；
+                            Centos默认不开启bridge-nf透明网桥功能，启动bridge-nf方式：vim /usr/lib/sysctl.d/00-system.conf	#将值改为“1”
+                            
+                            或：
+                                编辑文件vim /etc/sysctl.conf 添加：
+                                net.bridge.bridge-nf-call-ip6tables = 1
+                                net.bridge.bridge-nf-call-iptables = 1
+                                net.bridge.bridge-nf-call-arptables = 1
+                                保存退出；
+
+                        加重网桥模块： br_netfilter
+                            modprobe br_netfilter
+                            
+                            执行：/sbin/sysctl -p
+                            
+                            将此模块加入开机自加载：
+                                在/etc/新建rc.sysinit 文件，并写入以下内容：
+                                    vim /etc/rc.sysinit
+                                    #!/bin/bash
+                                    for file in /etc/sysconfig/modules/*.modules ; do
+                                    [ -x $file ] && $file
+                                    done
+                                
+                                在/etc/sysconfig/modules/目录下新建文件br_netfilter.modules
+                                    vi /etc/sysconfig/modules/br_netfilter.modules
+                                    modprobe br_netfilter
+
+                            增加权限：chmod 755 /etc/sysconfig/modules/br_netfilter.modules
+                            
+                            重启后检查模块：lsmod |grep br_netfilter
+
+                    配置三层代理Layer-3（L3）为自助虚拟网络提供路由和NAT服务：
+                        cp /etc/neutron/l3_agent.ini /etc/neutron/l3_agent.ini.bak
+                        cat /etc/neutron/l3_agent.ini.bak | grep -v ^# | uniq > /etc/neutron/l3_agent.ini
+                        
+                        vim /etc/neutron/l3_agent.ini
+                            [DEFAULT]
+                            interface_driver = linuxbridge
+                    
+                    配置DHCP代理配置文件：/etc/neutron/dhcp_agent.ini
+                        备份原始配置文件：
+                            cp /etc/neutron/dhcp_agent.ini /etc/neutron/dhcp_agent.ini.bak
+                            
+                            将原始配置文件去掉带”#“号行：
+                                cat /etc/neutron/dhcp_agent.ini.bak | grep -v ^# | uniq > /etc/neutron/dhcp_agent.ini
+                            
+                            编辑配置文件：vim /etc/neutron/dhcp_agent.ini
+                                [DEFAULT]
+                                    interface_driver = linuxbridge
+                                    dhcp_driver = neutron.agent.linux.dhcp.Dnsmasq
+                                    enable_isolated_metadata = true
+                    
+                    配置元数据代理配置文件：/etc/neutron/metadata_agent.ini
+                        备份原始配置文件：cp /etc/neutron/metadata_agent.ini /etc/neutron/metadata_agent.ini.bak
+                        
+                        将原始配置文件去掉带”#“号行：
+                            cat /etc/neutron/metadata_agent.ini.bak | grep -v ^# | uniq > /etc/neutron/metadata_agent.ini
+
+                        编辑配置文件：vim /etc/neutron/metadata_agent.ini
+                            [DEFAULT]
+                                nova_metadata_host = controller
+                                metadata_proxy_shared_secret = 123456
+        
+        配置控制节点nova配置文件里[neutron]选项设置：
+            vim /etc/nova/nova.conf
+                [neutron]
+                url = http://controller:9696
+                auth_url = http://controller:35357
+                auth_type = password
+                project_domain_name = default
+                user_domain_name = default
+                region_name = RegionOne
+                project_name = service
+                username = neutron
+                password = 123456
+                service_metadata_proxy = true
+                metadata_proxy_shared_secret = 123456           
+        
+        在控制节点（controller）上创建ml2软链接，并同步neutron数据库：
+            1．ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
+            2. su -s /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf \
+            --config-file /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head" neutron
+       
+        在控制节点上（controller）重启/启动相关服务，并将neutron相关服务加入开机自启：
+            systemctl restart openstack-nova-api.service
+            systemctl enable neutron-server.service \
+            
+            neutron-linuxbridge-agent.service neutron-dhcp-agent.service \
+            neutron-l3-agent.service
+            neutron-metadata-agent.service
+            
+            systemctl start neutron-server.service 
+            systemctl start neutron-linuxbridge-agent.service
+            systemctl start neutron-dhcp-agent.service
+            systemctl start neutron-metadata-agent.service
+            systemctl start neutron-l3-agent.service
+
+        计算节点（compute）安装neutron组件：
+            安装组件：yum install openstack-neutron-linuxbridge ebtables ipset
+            
+            配置neutron主配置文件：/etc/neutron/neutron.conf
+		        备份原始配置文件：cp /etc/neutron/neutron.conf /etc/neutron/neutron.conf.bak
+                
+                将原始配置文件去掉带”#“号行：
+                    cat /etc/neutron/neutron.conf.bak | grep -v ^# | uniq > /etc/neutron/neutron.conf
+
+                编辑配置文件：vim /etc/neutron/neutron.conf
+                    [DEFAULT]
+                    transport_url = rabbit://openstack:RABBIT_PASS@controller
+                    auth_strategy = keystone
+                    
+                    [keystone_authtoken]
+                    auth_uri = http://controller:5000
+                    auth_url = http://controller:35357
+                    memcached_servers = controller:11211
+                    auth_type = password
+                    project_domain_name = default
+                    user_domain_name = default
+                    project_name = service
+                    username = neutron
+                    password = 123456
+                    
+                    [oslo_concurrency]
+                    lock_path = /var/lib/neutron/tmp
+            
+            配置网桥配置文件：/etc/neutron/plugins/ml2/linuxbridge_agent.ini
+                备份原始配置文件：
+                    cp /etc/neutron/plugins/ml2/linuxbridge_agent.ini /etc/neutron/plugins/ml2/linuxbridge_agent.ini.bak
+
+                将原始配置文件去掉带”#“号行：
+                    cd /etc/neutron/plugins/ml2
+                    cat linuxbridge_agent.ini.bak | grep -v ^# | uniq > linuxbridge_agent.ini
+                
+                编辑配置文件：vim /etc/neutron/plugins/ml2/linuxbridge_agent.ini
+                    [vxlan]
+                    enable_vxlan = true
+                    local_ip = 192.168.88.150		#控制节点隧道网口IP地址
+                    l2_population = true
+                    
+                    [securitygroup]
+                    enable_security_group = true
+                    firewall_driver =neutron.agent.linux.iptables_firewall.IptablesFirewallDriver
+
+                开启bridge-nf透明网桥功能，启动bridge-nf：
+	                vim /usr/lib/sysctl.d/00-system.conf		#将值改为1
+
+                    或：
+                        编辑文件vim /etc/sysctl.conf 添加：
+                        net.bridge.bridge-nf-call-ip6tables = 1
+                        net.bridge.bridge-nf-call-iptables = 1
+                        net.bridge.bridge-nf-call-arptables = 1
+                        保存退出，
+
+                        加重网桥模块：br_netfilter
+                            modprobe br_netfilter
+                        
+                        执行：/sbin/sysctl -p
+
+
+                    将此模块加入开机自加载：
+                        在/etc/新建rc.sysinit 文件，并写入以下内容：
+                            vim /etc/rc.sysinit
+                                #!/bin/bash
+                                for file in /etc/sysconfig/modules/*.modules ; do
+                                [ -x $file ] && $file
+                                done
+                        
+                        在/etc/sysconfig/modules/目录下新建文件br_netfilter.modules
+                            vi /etc/sysconfig/modules/br_netfilter.modules
+                                写入：modprobe br_netfilter
+                                增加权限：chmod 755 /etc/sysconfig/modules/br_netfilter.modules
+                                重启后检查模块：lsmod |grep br_netfilter
+                
+                编辑计算节点的nova配置文件，加入[neuron]选项功能：
+                    vim /etc/nova/nova.conf
+                        [neutron]
+                        url = http://controller:9696
+                        auth_url = http://controller:35357
+                        auth_type = password
+                        project_domain_name = default
+                        user_domain_name = default
+                        region_name = RegionOne
+                        project_name = service
+                        username = neutron
+                        password = 123456
+                
+                重启/启动相关服务，并加入开机自启：
+                    systemctl restart openstack-nova-compute.service
+                    systemctl enable neutron-linuxbridge-agent.service
+                    systemctl start neutron-linuxbridge-agent.service
+        
+        部署验证：
+            在控制节点（controller）操作：
+                . /root/admin-openrc
+                openstack network agent list    
