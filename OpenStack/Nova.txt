@@ -20,12 +20,10 @@
             
             nova-novncproxy daemon：提供通过VNC连接访问正在运行的实例的代理。支持基于浏览器的novnc客户端；
 
-
     工作流程：
         外部向nova api请求了虚拟机资源，并附上虚拟机参数之后，nova-compute根据从队列里取出的虚拟机信息向glance请求镜像，向neutron请求网络，
         向cinder请求卷设备，最终调用Hypervisor创建虚拟机；
-
-    
+  
     Nova-api安装：
         Nova组件部署：
             Nova各组件分布：
@@ -114,35 +112,35 @@
                             [DEFAULT]
                             enabled_apis = osapi_compute,metadata
                             transport_url = rabbit://openstack:123456@controller
-                            my_ip = 192.168.80.150							#本机地址
+                            my_ip = 192.168.80.150						#本机地址
                             use_neutron = True
                             firewall_driver = nova.virt.firewall.NoopFirewallDriver	#需要关闭自带firewalld服务
                             
-                            [api_database]									#数据库设置
+                            [api_database]								#数据库设置
                             connection=mysql+pymysql://nova:nova_123456@controller/nova_api
                             
-                            [database]										#数据库设置
+                            [database]									#数据库设置
                             connection = mysql+pymysql://nova:nova_123456@controller/nova
                             
-                            [api]												#API验证设置
+                            [api]									#API验证设置
                             auth_strategy = keystone
                             
-                            [keystone_authtoken]								#keystone鉴权设置
-                            auth_url = http://controller:5000/v3					#鉴权url
-                            memcached_servers = controller:11211				#memcached服务链接
-                            auth_type = password								#认证方式
-                            project_domain_name = default						#指定项目域
+                            [keystone_authtoken]							#keystone鉴权设置
+                            auth_url = http://controller:5000/v3			#鉴权url
+                            memcached_servers = controller:11211			#memcached服务链接
+                            auth_type = password							#认证方式
+                            project_domain_name = default					#指定项目域
                             user_domain_name = default						#指定用户域
                             project_name = service							#指定项目
                             username = nova									#指定服务用户名
-                            password = nova_123456								#服务用户名密码
+                            password = nova_123456							#服务用户名密码
                             
                             [vnc]											#vnc设置
                             enabled = true
                             server_listen = $my_ip
                             server_proxyclient_address = $my_ip
                             
-                            [glance]											#glance设置
+                            [glance]									 #glance设置
                             api_servers = http://controller:9292 
                             
                             [oslo_concurrency]
@@ -194,7 +192,6 @@
                 systemctl start openstack-nova-api.service \；
                 openstack-nova-consoleauth.service openstack-nova-scheduler.service \；
                 openstack-nova-conductor.service openstack-nova-novncproxy.service；
-
 
     Nova-compute组件安装：
         安装计算节点（compute）的nova-compute组件：
