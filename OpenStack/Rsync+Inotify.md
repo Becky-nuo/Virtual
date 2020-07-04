@@ -17,6 +17,8 @@
 >rsync监听端口：873 
 >rsync运行模式：C/S
 
+![](https://github.com/Becky-nuo/git-test/blob/master/images/Rsync/001.png)
+
 ###怎么使用Rsync 
 >工作模式 
 >>本地方式——命令模式 
